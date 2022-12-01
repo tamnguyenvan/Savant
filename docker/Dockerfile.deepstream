@@ -56,6 +56,7 @@ RUN python -m pip install --no-cache-dir /libs/gstsavantframemeta/dist/*.whl
 COPY savant savant
 COPY LICENSE savant/
 ENV GST_PLUGIN_PATH=$APP_PATH/savant/gst_plugins:$APP_PATH/savant/utils/gst_plugins
+ENV USE_NEW_NVSTREAMMUX=yes
 
 ENTRYPOINT ["python", "-m", "savant.entrypoint"]
 

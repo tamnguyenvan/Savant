@@ -2,6 +2,7 @@
 from collections import defaultdict
 from pathlib import Path
 from queue import Queue
+from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import List, Optional
 import time
@@ -18,6 +19,7 @@ from savant.deepstream.buffer_processor import (
     NvDsRawBufferProcessor,
     NvDsEncodedBufferProcessor,
 )
+from savant.deepstream.nvstreammux_config_builder import build_nvstreammux_config
 from savant.gstreamer import Gst, GLib  # noqa:F401
 from savant.gstreamer.codecs import Codec, CODEC_BY_NAME
 from savant.gstreamer.pipeline import GstPipeline
@@ -534,18 +536,31 @@ class NvDsPipeline(GstPipeline):
         :param live_source: Whether source is live or not.
         """
 
+        nvstreammux_config = build_nvstreammux_config(
+            batch_size=self._batch_size,
+            max_same_source_frames=self._batch_size,
+            adaptive_batching=False,
+        )
+        self._logger.debug('Generated nvstreammux config:\n%s', nvstreammux_config)
+        nvstreammux_config_file = NamedTemporaryFile(
+            prefix='nvstreammux_config_', suffix='.txt'
+        )
+        with open(nvstreammux_config_file.name, 'w') as f:
+            f.write(nvstreammux_config)
+        self._logger.info(
+            'Saved nvstreammux config to %s', nvstreammux_config_file.name
+        )
         frame_processing_parameters = {
-            'width': self._frame_width,
-            'height': self._frame_height,
-            'batch-size': self._batch_size,
+            'config-file-path': nvstreammux_config_file.name,
+            # TODO:
             # Allowed range for batch-size: 1 - 1024
             # Allowed range for buffer-pool-size: 4 - 1024
-            'buffer-pool-size': max(4, self._batch_size),
-            'batched-push-timeout': self._batched_push_timeout,
-            'live-source': live_source,  # True for RTSP or USB camera
+            # 'buffer-pool-size': max(4, self._batch_size),
+            # 'batched-push-timeout': self._batched_push_timeout,
+            # 'live-source': live_source,  # True for RTSP or USB camera
             # TODO: remove when the bug with odd will be fixed
             # https://forums.developer.nvidia.com/t/nvstreammux-error-releasing-cuda-memory/219895/3
-            'interpolation-method': 6,
+            # 'interpolation-method': 6,
         }
         muxer = self._add_element(
             PipelineElement(
