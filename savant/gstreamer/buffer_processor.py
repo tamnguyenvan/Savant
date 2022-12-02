@@ -28,7 +28,12 @@ class GstBufferProcessor:
     def prepare_input(self, buffer: Gst.Buffer):
         """Pipeline input processor."""
 
-    def prepare_output(self, buffer: Gst.Buffer, *data) -> Iterator[SinkMessage]:
+    def prepare_output(
+        self,
+        pad: Gst.Pad,
+        buffer: Gst.Buffer,
+        *data,
+    ) -> Iterator[SinkMessage]:
         """Pipeline output processor."""
 
     def prepare_element_input(self, element: PipelineElement, buffer: Gst.Buffer):

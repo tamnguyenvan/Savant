@@ -56,8 +56,6 @@ class NvDsPipeline(GstPipeline):
     :param name: Pipeline name
     :param source: Pipeline source element
     :param elements: Pipeline elements
-    :key frame_width: Processing frame width (after nvstreammux)
-    :key frame_height: Processing frame height (after nvstreammux)
     :key batch_size: Primary batch size (nvstreammux batch-size)
     :key output_frame: Whether to include frame in module output, not just metadata
     """
@@ -69,10 +67,6 @@ class NvDsPipeline(GstPipeline):
         elements: List[PipelineElement],
         **kwargs,
     ):
-        # pipeline internal processing frame size
-        self._frame_width = kwargs['frame_width']
-        self._frame_height = kwargs['frame_height']
-
         self._batch_size = kwargs['batch_size']
         # Timeout in microseconds
         self._batched_push_timeout = kwargs.get('batched_push_timeout', 2000)
@@ -131,8 +125,6 @@ class NvDsPipeline(GstPipeline):
                 sources=self._sources,
                 model_object_registry=model_object_registry,
                 objects_preprocessing=self._objects_preprocessing,
-                frame_width=self._frame_width,
-                frame_height=self._frame_height,
                 output_frame=self._output_frame_codec is not None,
             )
         return NvDsEncodedBufferProcessor(
@@ -141,8 +133,6 @@ class NvDsPipeline(GstPipeline):
             sources=self._sources,
             model_object_registry=model_object_registry,
             objects_preprocessing=self._objects_preprocessing,
-            frame_width=self._frame_width,
-            frame_height=self._frame_height,
             codec=self._output_frame_codec.value,
         )
 
@@ -484,6 +474,8 @@ class NvDsPipeline(GstPipeline):
 
         # convert output meta
         for nvds_frame_meta in nvds_frame_meta_iterator(nvds_batch_meta):
+            frame_width = nvds_frame_meta.source_frame_width
+            frame_height = nvds_frame_meta.source_frame_height
             # use consecutive numbers for object_id in case there is no tracker
             object_ids = defaultdict(int)
             # first iteration to correct object_id
@@ -509,7 +501,7 @@ class NvDsPipeline(GstPipeline):
                     continue
 
                 obj_meta = nvds_obj_meta_output_converter(
-                    nvds_obj_meta, self._frame_width, self._frame_height
+                    nvds_obj_meta, frame_width, frame_height
                 )
                 for attr_meta_list in nvds_attr_meta_iterator(
                     frame_meta=nvds_frame_meta, obj_meta=nvds_obj_meta

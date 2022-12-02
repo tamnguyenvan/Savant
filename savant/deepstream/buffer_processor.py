@@ -46,6 +46,8 @@ class _OutputFrame(NamedTuple):
 
     idx: int
     pts: int
+    width: int
+    height: int
     frame: Optional[bytes]
     codec: Optional[CodecInfo]
     keyframe: bool
@@ -59,8 +61,6 @@ class NvDsBufferProcessor(GstBufferProcessor):
         sources: SourceInfoRegistry,
         model_object_registry: ModelObjectRegistry,
         objects_preprocessing: ObjectsPreprocessing,
-        frame_width: int,
-        frame_height: int,
     ):
         """Buffer processor for DeepStream pipeline.
 
@@ -69,16 +69,12 @@ class NvDsBufferProcessor(GstBufferProcessor):
         :param sources: Source info registry.
         :param model_object_registry: Model.Object registry.
         :param objects_preprocessing: Objects processing registry.
-        :param frame_width: Frame width.
-        :param frame_height: Frame height.
         """
 
         super().__init__(queue, fps_meter)
         self._sources = sources
         self._model_object_registry = model_object_registry
         self._objects_preprocessing = objects_preprocessing
-        self._frame_width = frame_width
-        self._frame_height = frame_height
         self._queue = queue
 
     def prepare_input(self, buffer: Gst.Buffer):
@@ -97,6 +93,8 @@ class NvDsBufferProcessor(GstBufferProcessor):
             )
             frame_idx = savant_frame_meta.idx if savant_frame_meta else None
             frame_pts = nvds_frame_meta.buf_pts
+            frame_width = nvds_frame_meta.source_frame_width
+            frame_height = nvds_frame_meta.source_frame_height
 
             self._logger.debug(
                 'Preparing input for frame %s of source %s.',
@@ -134,16 +132,16 @@ class NvDsBufferProcessor(GstBufferProcessor):
                                     ]
                                 ]
                             ),
-                            scale_factor_x=self._frame_width,
-                            scale_factor_y=self._frame_height,
+                            scale_factor_x=frame_width,
+                            scale_factor_y=frame_height,
                         )[0]
                         selection_type = ObjectSelectionType.ROTATED_BBOX
                     else:
                         scaled_bbox = (
-                            obj_meta['bbox']['xc'] * self._frame_width,
-                            obj_meta['bbox']['yc'] * self._frame_height,
-                            obj_meta['bbox']['width'] * self._frame_width,
-                            obj_meta['bbox']['height'] * self._frame_height,
+                            obj_meta['bbox']['xc'] * frame_width,
+                            obj_meta['bbox']['yc'] * frame_height,
+                            obj_meta['bbox']['width'] * frame_width,
+                            obj_meta['bbox']['height'] * frame_height,
                             obj_meta['bbox']['angle'],
                         )
                         selection_type = ObjectSelectionType.REGULAR_BBOX
@@ -173,10 +171,10 @@ class NvDsBufferProcessor(GstBufferProcessor):
                 gie_uid=model_uid,
                 # tuple(xc, yc, width, height, angle)
                 bbox=(
-                    self._frame_width / 2,
-                    self._frame_height / 2,
-                    self._frame_width,
-                    self._frame_height,
+                    frame_width / 2,
+                    frame_height / 2,
+                    frame_width,
+                    frame_height,
                     0,
                 ),
                 obj_label=obj_label,
@@ -190,6 +188,7 @@ class NvDsBufferProcessor(GstBufferProcessor):
 
     def prepare_output(
         self,
+        pad: Gst.Pad,
         buffer: Gst.Buffer,
         source_info: SourceInfo,
     ) -> SinkVideoFrame:
@@ -204,7 +203,7 @@ class NvDsBufferProcessor(GstBufferProcessor):
             buffer.pts,
             source_info.source_id,
         )
-        for output_frame in self._iterate_output_frames(buffer):
+        for output_frame in self._iterate_output_frames(pad, buffer):
             self._logger.debug(
                 'Preparing output for frame %s with PTS %s of source %s.',
                 output_frame.idx,
@@ -219,8 +218,8 @@ class NvDsBufferProcessor(GstBufferProcessor):
             yield SinkVideoFrame(
                 source_id=source_info.source_id,
                 frame_meta=frame_meta,
-                frame_width=self._frame_width,
-                frame_height=self._frame_height,
+                frame_width=output_frame.width,
+                frame_height=output_frame.height,
                 frame=output_frame.frame,
                 frame_codec=output_frame.codec,
                 keyframe=output_frame.keyframe,
@@ -265,8 +264,8 @@ class NvDsBufferProcessor(GstBufferProcessor):
                     else:
                         parent_bbox.left = 0
                         parent_bbox.top = 0
-                        parent_bbox.width = self._frame_width
-                        parent_bbox.height = self._frame_height
+                        parent_bbox.width = nvds_frame_meta.source_frame_width
+                        parent_bbox.height = nvds_frame_meta.source_frame_height
 
                     bbox = model.input.preprocess_object_meta(
                         bbox, parent_bbox=parent_bbox
@@ -311,6 +310,8 @@ class NvDsBufferProcessor(GstBufferProcessor):
 
         nvds_batch_meta = pyds.gst_buffer_get_nvds_batch_meta(hash(buffer))
         for nvds_frame_meta in nvds_frame_meta_iterator(nvds_batch_meta):
+            frame_width = nvds_frame_meta.source_frame_width
+            frame_height = nvds_frame_meta.source_frame_height
             for nvds_obj_meta in nvds_obj_meta_iterator(nvds_frame_meta):
                 # convert custom model output and save meta
                 if model.output.converter:
@@ -374,11 +375,11 @@ class NvDsBufferProcessor(GstBufferProcessor):
                                 bbox_tensor[:, 2][bbox_tensor[:, 2] < 0.0] = 0.0
                                 bbox_tensor[:, 3][bbox_tensor[:, 3] < 0.0] = 0.0
                                 bbox_tensor[:, 4][
-                                    bbox_tensor[:, 4] > self._frame_width - 1.0
-                                ] = (self._frame_width - 1.0)
+                                    bbox_tensor[:, 4] > frame_width - 1.0
+                                ] = (frame_width - 1.0)
                                 bbox_tensor[:, 5][
-                                    bbox_tensor[:, 5] > self._frame_height - 1.0
-                                ] = (self._frame_height - 1.0)
+                                    bbox_tensor[:, 5] > frame_height - 1.0
+                                ] = (frame_height - 1.0)
 
                                 # right to width, bottom to height
                                 bbox_tensor[:, 4] -= bbox_tensor[:, 2]
@@ -526,7 +527,11 @@ class NvDsBufferProcessor(GstBufferProcessor):
             and nvds_obj_meta.class_id == class_id
         )
 
-    def _iterate_output_frames(self, buffer: Gst.Buffer) -> Iterator[_OutputFrame]:
+    def _iterate_output_frames(
+        self,
+        pad: Gst.Pad,
+        buffer: Gst.Buffer,
+    ) -> Iterator[_OutputFrame]:
         """Iterate output frames."""
 
 
@@ -538,8 +543,6 @@ class NvDsEncodedBufferProcessor(NvDsBufferProcessor):
         sources: SourceInfoRegistry,
         model_object_registry: ModelObjectRegistry,
         objects_preprocessing: ObjectsPreprocessing,
-        frame_width: int,
-        frame_height: int,
         codec: CodecInfo,
     ):
         """Buffer processor for DeepStream pipeline.
@@ -549,8 +552,6 @@ class NvDsEncodedBufferProcessor(NvDsBufferProcessor):
         :param sources: Source info registry.
         :param model_object_registry: Model.Object registry.
         :param objects_preprocessing: Objects processing registry.
-        :param frame_width: Frame width.
-        :param frame_height: Frame height.
         :param codec: Codec of the output frames.
         """
 
@@ -561,12 +562,19 @@ class NvDsEncodedBufferProcessor(NvDsBufferProcessor):
             sources=sources,
             model_object_registry=model_object_registry,
             objects_preprocessing=objects_preprocessing,
-            frame_width=frame_width,
-            frame_height=frame_height,
         )
 
-    def _iterate_output_frames(self, buffer: Gst.Buffer) -> Iterator[_OutputFrame]:
+    def _iterate_output_frames(
+        self,
+        pad: Gst.Pad,
+        buffer: Gst.Buffer,
+    ) -> Iterator[_OutputFrame]:
         """Iterate output frames from Gst.Buffer."""
+
+        caps: Gst.Caps = pad.get_current_caps()
+        struct: Gst.Structure = caps.get_structure(0)
+        _, frame_width = struct.get_int('width')
+        _, frame_height = struct.get_int('height')
 
         # get encoded frame for output
         frame = buffer.extract_dup(0, buffer.get_size())
@@ -577,6 +585,8 @@ class NvDsEncodedBufferProcessor(NvDsBufferProcessor):
         yield _OutputFrame(
             idx=frame_idx,
             pts=frame_pts,
+            width=frame_width,
+            height=frame_height,
             frame=frame,
             codec=self._codec,
             keyframe=is_keyframe,
@@ -591,8 +601,6 @@ class NvDsRawBufferProcessor(NvDsBufferProcessor):
         sources: SourceInfoRegistry,
         model_object_registry: ModelObjectRegistry,
         objects_preprocessing: ObjectsPreprocessing,
-        frame_width: int,
-        frame_height: int,
         output_frame: bool,
     ):
         """Buffer processor for DeepStream pipeline.
@@ -602,8 +610,6 @@ class NvDsRawBufferProcessor(NvDsBufferProcessor):
         :param sources: Source info registry.
         :param model_object_registry: Model.Object registry.
         :param objects_preprocessing: Objects processing registry.
-        :param frame_width: Frame width.
-        :param frame_height: Frame height.
         :param output_frame: Whether to output frame or not.
         """
 
@@ -615,11 +621,13 @@ class NvDsRawBufferProcessor(NvDsBufferProcessor):
             sources=sources,
             model_object_registry=model_object_registry,
             objects_preprocessing=objects_preprocessing,
-            frame_width=frame_width,
-            frame_height=frame_height,
         )
 
-    def _iterate_output_frames(self, buffer: Gst.Buffer) -> Iterator[_OutputFrame]:
+    def _iterate_output_frames(
+        self,
+        pad: Gst.Pad,
+        buffer: Gst.Buffer,
+    ) -> Iterator[_OutputFrame]:
         """Iterate output frames from NvDs batch.
 
         NvDs batch contains raw RGBA frames. They are all keyframes.
@@ -640,9 +648,13 @@ class NvDsRawBufferProcessor(NvDsBufferProcessor):
             )
             frame_idx = savant_frame_meta.idx if savant_frame_meta else None
             frame_pts = nvds_frame_meta.buf_pts
+            frame_width = nvds_frame_meta.source_frame_width
+            frame_height = nvds_frame_meta.source_frame_height
             yield _OutputFrame(
                 idx=frame_idx,
                 pts=frame_pts,
+                width=frame_width,
+                height=frame_height,
                 frame=frame,
                 codec=self._codec,
                 # Any frame is keyframe since it was not encoded

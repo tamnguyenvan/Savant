@@ -23,13 +23,13 @@ def initializer_resolver(param_name: str, default_val: Any, _parent_, _root_) ->
             etcd: 10
 
         parameters:
-            frame_width: ${initializer:frame_width,1280}
+            batch_size: ${initializer:batch_size,4}
 
     where
 
     * ``initializer`` is the registered resolver name
-    * ``frame_width`` is the example variable name
-    * ``1280`` is the default value, used in case all value stores failed
+    * ``batch_size`` is the example variable name
+    * ``4`` is the default value, used in case all value stores failed
       to return a result
     """
     priority_cfg_key = 'parameter_init_priority'

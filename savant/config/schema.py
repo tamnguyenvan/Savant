@@ -344,12 +344,12 @@ class Module:
     .. code-block:: yaml
 
         parameters:
-            frame_width: ${initializer:frame_width,1280}
+            batch_size: ${initializer:batch_size,4}
 
     Etcd storage will be polled for the current value first,
     in the event etcd is unavailable resolver will
-    try to get ``frame_width`` environment variable, and if that is not set,
-    then default value of 1280 will be used.
+    try to get ``batch_size`` environment variable, and if that is not set,
+    then default value of 4 will be used.
     """
 
     parameters: Dict[str, Any] = field(default_factory=dict)
