@@ -16,7 +16,7 @@ services:
     entrypoint: /opt/savant/adapters/gst/sources/video_loop.sh
 
   module:
-    build: 
+    build:
       context: .
       dockerfile: docker/Dockerfile.x86
     volumes:
@@ -35,16 +35,13 @@ services:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [ gpu ]
 
   always-on-sink:
     image: ghcr.io/insight-platform/savant-adapters-deepstream:latest
     restart: unless-stopped
     ports:
-      - "554:554"    # RTSP
-      - "1935:1935"  # RTMP
-      - "888:888"    # HLS
-      - "8889:8889"  # WebRTC
+      - "554:554" # RTSP
     volumes:
       - zmq_sockets:/tmp/zmq-sockets
       - ../assets/stub_imgs:/stub_imgs
@@ -60,7 +57,7 @@ services:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [ gpu ]
   graphite:
     image: graphiteapp/graphite-statsd
   grafana:
