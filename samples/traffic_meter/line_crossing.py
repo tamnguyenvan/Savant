@@ -5,7 +5,9 @@ from savant_rs.primitives.geometry import PolygonalArea, Point
 from savant.gstreamer import Gst
 from savant.deepstream.meta.frame import NvDsFrameMeta
 from savant.deepstream.pyfunc import NvDsPyFuncPlugin
-from samples.traffic_meter.utils import Point, Direction, TwoLinesCrossingTracker
+from samples.traffic_meter.utils import (
+    Point, Direction, TwoLinesCrossingTracker, IdleObjectTracker
+)
 
 
 class ConditionalDetectorSkip(NvDsPyFuncPlugin):
@@ -70,6 +72,9 @@ class LineCrossing(NvDsPyFuncPlugin):
         self.entry_count = defaultdict(int)
         self.exit_count = defaultdict(int)
         self.cross_events = defaultdict(lambda: defaultdict(list))
+        self.idle_events = defaultdict(lambda: defaultdict(list))
+
+        self.idle_trackers = {}
 
     def on_source_eos(self, source_id: str):
         """On source EOS event callback."""
@@ -83,6 +88,11 @@ class LineCrossing(NvDsPyFuncPlugin):
             del self.entry_count[source_id]
         if source_id in self.exit_count:
             del self.exit_count[source_id]
+
+        if source_id in self.idle_trackers:
+            del self.idle_trackers[source_id]
+        if source_id in self.idle_events:
+            del self.idle_events[source_id]
 
     def process_frame(self, buffer: Gst.Buffer, frame_meta: NvDsFrameMeta):
         """Process frame metadata.
@@ -103,7 +113,15 @@ class LineCrossing(NvDsPyFuncPlugin):
                 self.lc_trackers[frame_meta.source_id] = TwoLinesCrossingTracker(
                     self.areas[frame_meta.source_id]
                 )
+
             lc_tracker = self.lc_trackers[frame_meta.source_id]
+
+            if frame_meta.source_id not in self.idle_trackers:
+                self.idle_trackers[frame_meta.source_id] = IdleObjectTracker(
+                    idle_threshold=30,
+                    tolerance=0.1
+                )
+            idle_trakcer = self.idle_trackers[frame_meta.source_id]
 
             obj_metas = []
             for obj_meta in frame_meta.objects:
@@ -116,6 +134,9 @@ class LineCrossing(NvDsPyFuncPlugin):
                             obj_meta.bbox.yc,
                         ),
                     )
+                    object_coordinate = (obj_meta.bbox.xc, obj_meta.bbox.yc)
+                    idle_trakcer.update(obj_meta.track_id, object_coordinate)
+
                     self.track_last_frame_num[frame_meta.source_id][
                         obj_meta.track_id
                     ] = frame_meta.frame_num
@@ -126,7 +147,11 @@ class LineCrossing(NvDsPyFuncPlugin):
                 [obj_meta.track_id for obj_meta in obj_metas]
             )
 
-            for obj_meta, cross_direction in zip(obj_metas, track_lines_crossings):
+            idle_objects = idle_trakcer.check_idle(
+                [obj_meta.track_id for obj_meta in obj_metas]
+            )
+
+            for obj_meta, cross_direction, is_idle in zip(obj_metas, track_lines_crossings, idle_objects):
                 obj_events = self.cross_events[frame_meta.source_id][obj_meta.track_id]
                 if cross_direction is not None:
 
@@ -137,8 +162,15 @@ class LineCrossing(NvDsPyFuncPlugin):
                     elif cross_direction == Direction.exit:
                         self.exit_count[frame_meta.source_id] += 1
 
+                idle_events = self.idle_events[frame_meta.source_id][obj_meta.track_id]
+                if movement is not None:
+                    idle_events.append((movement, frame_meta.pts))
+
                 for direction_name, frame_pts in obj_events:
                     obj_meta.add_attr_meta('lc_tracker', direction_name, frame_pts)
+
+                for movement, frame_pts in idle_events:
+                    obj_meta.add_attr_meta('idle_tracker', movement, frame_pts)
 
             primary_meta_object.add_attr_meta(
                 'analytics', 'entries_n', self.entry_count[frame_meta.source_id]
@@ -167,3 +199,6 @@ class LineCrossing(NvDsPyFuncPlugin):
                     lc_tracker = self.lc_trackers[frame_meta.source_id]
                     del last_frames[track_id]
                     lc_tracker.remove_track(track_id)
+
+                    idle_tracker = self.idle_trackers[frame_meta.source_id]
+                    idle_tracker.remove_track(track_id)

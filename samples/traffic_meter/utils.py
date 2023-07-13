@@ -1,7 +1,7 @@
 """Line crossing trackers."""
 from collections import deque, defaultdict
 from enum import Enum
-from typing import Optional, Sequence, List, Tuple
+from typing import Optional, Sequence, List, Tuple, Union, Dict
 import random
 import math
 from savant_rs.primitives.geometry import (
@@ -15,6 +15,11 @@ from savant_rs.primitives.geometry import (
 class Direction(Enum):
     entry = 0
     exit = 1
+
+
+class Movement(Enum):
+    idle = 'idle'
+    moving = 'moving'
 
 
 class TwoLinesCrossingTracker:
@@ -73,6 +78,53 @@ class TwoLinesCrossingTracker:
                 ret[track_idx] = Direction.exit
 
         return ret
+
+
+class IdleObjectTracker:
+    def __init__(self, idle_threshold: int = 5, tolerance: float = 20):
+        self.history = {}
+        self.idle_threshold = idle_threshold
+        self.tolerance = tolerance
+
+    def update(self, track_id: int, object_coordinates: Tuple[float, float]):
+        if track_id in self.history:
+            self.history[track_id].append(object_coordinates)
+        else:
+            self.history[track_id] = [object_coordinates]
+
+    def remove_track(self, track_id: int):
+        if track_id in self.history:
+            del self.history[track_id]
+
+    def check_idle(self, track_ids: Union[int, List[int]]) -> Union[bool, Dict[str, bool]]:
+        if isinstance(track_ids, int):
+            track_ids = [track_ids]
+
+        results = {}
+        for track_id in track_ids:
+            if track_id in self.history:
+                object_history = self.history[track_id]
+                if len(object_history) >= self.idle_threshold:
+                    reference_coordinates = object_history[-self.idle_threshold]
+                    is_idle = all(
+                        self.calculate_distance(reference_coordinates, coordinate) <= self.tolerance
+                        for coordinate in object_history[-self.idle_threshold + 1:]
+                    )
+                    results[track_id] = Movement.idle if is_idle else Movement.moving
+                else:
+                    results[track_id] = Movement.moving
+            else:
+                results[track_id] = Movement.moving
+
+        if len(results) == 1:
+            return results[track_ids[0]]
+        return results
+
+    def calculate_distance(self, coordinates1: Tuple[float, float], coordinates2: Tuple[float, float]) -> float:
+        x1, y1 = coordinates1
+        x2, y2 = coordinates2
+        distance = ((x2 - x1)**2 + (y2 - y1)**2)**0.5
+        return distance
 
 
 class RandColorIterator:
