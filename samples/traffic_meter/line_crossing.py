@@ -150,8 +150,7 @@ class LineCrossing(NvDsPyFuncPlugin):
             idle_objects = idle_trakcer.check_idle(
                 [obj_meta.track_id for obj_meta in obj_metas]
             )
-
-            for obj_meta, cross_direction, is_idle in zip(obj_metas, track_lines_crossings, idle_objects):
+            for obj_meta, cross_direction, movement in zip(obj_metas, track_lines_crossings, idle_objects):
                 obj_events = self.cross_events[frame_meta.source_id][obj_meta.track_id]
                 if cross_direction is not None:
 
@@ -162,15 +161,10 @@ class LineCrossing(NvDsPyFuncPlugin):
                     elif cross_direction == Direction.exit:
                         self.exit_count[frame_meta.source_id] += 1
 
-                idle_events = self.idle_events[frame_meta.source_id][obj_meta.track_id]
-                if movement is not None:
-                    idle_events.append((movement, frame_meta.pts))
-
                 for direction_name, frame_pts in obj_events:
                     obj_meta.add_attr_meta('lc_tracker', direction_name, frame_pts)
 
-                for movement, frame_pts in idle_events:
-                    obj_meta.add_attr_meta('idle_tracker', movement, frame_pts)
+                obj_meta.add_attr_meta('idle_tracker', movement, frame_meta.pts)
 
             primary_meta_object.add_attr_meta(
                 'analytics', 'entries_n', self.entry_count[frame_meta.source_id]

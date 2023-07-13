@@ -48,21 +48,21 @@ class Overlay(NvDsDrawFunc):
                     offset += 20
 
                 # add idle label if detected
-                idle_objects = obj_meta.get_attr_meta_list(
+                idle_objects = obj_meta.get_attr_meta(
                     'idle_tracker', Movement.idle.name
                 )
-                moving_objects = obj_meta.get_attr_meta_list(
+                moving_objects = obj_meta.get_attr_meta(
                     'idle_tracker', Movement.moving.name
                 )
-                idle_events_meta = idle_objects if idle_objects is not None else []
-                moving_events_meta = moving_objects if moving_objects is not None else []
+                idle_events_meta = [idle_objects] if idle_objects is not None else []
+                moving_events_meta = [moving_objects] if moving_objects is not None else []
                 offset = 20
                 for attr_meta in chain(idle_events_meta, moving_events_meta):
                     movement = attr_meta.name
                     artist.add_text(
                         movement,
                         (int(obj_meta.bbox.left), int(obj_meta.bbox.top) + offset),
-                        anchor_point_type=Position.LEFT_TOP,
+                        anchor_point_type=Position.RIGHT_BOTTOM,
                     )
                     offset += 20
 

@@ -96,12 +96,12 @@ class IdleObjectTracker:
         if track_id in self.history:
             del self.history[track_id]
 
-    def check_idle(self, track_ids: Union[int, List[int]]) -> Union[bool, Dict[str, bool]]:
+    def check_idle(self, track_ids: Union[int, List[int]]) -> Union[str, List[str]]:
         if isinstance(track_ids, int):
             track_ids = [track_ids]
 
-        results = {}
-        for track_id in track_ids:
+        results = [None] * len(track_ids)
+        for track_idx, track_id in enumerate(track_ids):
             if track_id in self.history:
                 object_history = self.history[track_id]
                 if len(object_history) >= self.idle_threshold:
@@ -110,14 +110,12 @@ class IdleObjectTracker:
                         self.calculate_distance(reference_coordinates, coordinate) <= self.tolerance
                         for coordinate in object_history[-self.idle_threshold + 1:]
                     )
-                    results[track_id] = Movement.idle if is_idle else Movement.moving
+                    results[track_idx] = Movement.idle.name if is_idle else Movement.moving.name
                 else:
-                    results[track_id] = Movement.moving
+                    results[track_idx] = Movement.moving.name
             else:
-                results[track_id] = Movement.moving
+                results[track_idx] = Movement.moving.name
 
-        if len(results) == 1:
-            return results[track_ids[0]]
         return results
 
     def calculate_distance(self, coordinates1: Tuple[float, float], coordinates2: Tuple[float, float]) -> float:
