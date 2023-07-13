@@ -13,7 +13,7 @@ parameters:
       top: 180
       bottom: 0
   output_frame:
-    codec: h264
+    codec: raw-rgba
   draw_func:
     module: samples.traffic_meter.overlay
     # specify the drawfunc's python class from the module
@@ -21,10 +21,10 @@ parameters:
     kwargs:
       overlay_height: 180
   detected_object:
-    id: 0
-    label: person
-    # id: 2
-    # label: car
+    # id: 0
+    # label: person
+    id: 2
+    label: car
 
 pipeline:
 
