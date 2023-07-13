@@ -75,5 +75,4 @@ pipeline:
       kwargs:
         config_path: ${oc.env:PROJECT_PATH}/samples/traffic_meter/line_config.yml
         stale_track_del_period: 5000
-        target_obj_label: car
-        send_stats: True
+        target_obj_labels: [ person, car, motobike, bus, truck]
