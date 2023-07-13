@@ -1,7 +1,6 @@
 from collections import defaultdict
 import sys
 import yaml
-from statsd import StatsClient
 from savant_rs.primitives.geometry import PolygonalArea, Point
 from savant.gstreamer import Gst
 from savant.deepstream.meta.frame import NvDsFrameMeta
@@ -72,14 +71,6 @@ class LineCrossing(NvDsPyFuncPlugin):
         self.exit_count = defaultdict(int)
         self.cross_events = defaultdict(lambda: defaultdict(list))
 
-        # metrics namescheme
-        # savant.module.traffic_meter.source_id.obj_class_label.exit
-        # savant.module.traffic_meter.source_id.obj_class_label.entry
-        if self.send_stats:
-            self.stats_client = StatsClient(
-                'graphite', 8125, prefix='savant.module.traffic_meter'
-            )
-
     def on_source_eos(self, source_id: str):
         """On source EOS event callback."""
         if source_id in self.lc_trackers:
@@ -138,17 +129,6 @@ class LineCrossing(NvDsPyFuncPlugin):
             for obj_meta, cross_direction in zip(obj_metas, track_lines_crossings):
                 obj_events = self.cross_events[frame_meta.source_id][obj_meta.track_id]
                 if cross_direction is not None:
-                    # send to graphite
-                    if self.send_stats:
-                        self.stats_client.incr(
-                            '.'.join(
-                                (
-                                    frame_meta.source_id,
-                                    self.target_obj_label,
-                                    cross_direction.name,
-                                )
-                            )
-                        )
 
                     obj_events.append((cross_direction.name, frame_meta.pts))
 
