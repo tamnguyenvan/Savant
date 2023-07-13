@@ -54,6 +54,9 @@ services:
     restart: unless-stopped
     ports:
       - "554:554" # RTSP
+      - "1935:1935" # RTMP
+      - "888:888" # HLS
+      - "8889:8889" # WebRTC
     volumes:
       - zmq_sockets:/tmp/zmq-sockets
       - ../assets/stub_imgs:/stub_imgs
