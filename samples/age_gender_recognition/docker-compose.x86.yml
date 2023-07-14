@@ -36,16 +36,28 @@ services:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [ gpu ]
+
+  image-file-sink:
+    image: ghcr.io/insight-platform/savant-adapters-py:latest
+    restart: unless-stopped
+    volumes:
+      - ../../results/:/results/
+      - zmq_sockets:/tmp/zmq-sockets
+    environment:
+      - ZMQ_ENDPOINT=sub+connect:ipc:///tmp/zmq-sockets/output-video.ipc
+      - DIR_LOCATION=/results/age_gender_recognition/%source_id-%source_filename
+      - CHUNK_SIZE=10
+    entrypoint: /opt/savant/adapters/python/sinks/image_files.py
 
   always-on-sink:
     image: ghcr.io/insight-platform/savant-adapters-deepstream:latest
     restart: unless-stopped
     ports:
-      - "554:554"    # RTSP
-      - "1935:1935"  # RTMP
-      - "888:888"    # HLS
-      - "8889:8889"  # WebRTC
+      - "554:554" # RTSP
+      - "1935:1935" # RTMP
+      - "888:888" # HLS
+      - "8889:8889" # WebRTC
     volumes:
       - zmq_sockets:/tmp/zmq-sockets
       - ../assets/stub_imgs:/stub_imgs
@@ -62,7 +74,7 @@ services:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [ gpu ]
 
 volumes:
   zmq_sockets:
