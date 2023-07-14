@@ -13,7 +13,7 @@ parameters:
       top: 180
       bottom: 0
   output_frame:
-    codec: raw-rgba
+    codec: jpeg
   draw_func:
     module: samples.traffic_meter.overlay
     # specify the drawfunc's python class from the module
