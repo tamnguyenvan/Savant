@@ -4,6 +4,8 @@ from enum import Enum
 from typing import Optional, Sequence, List, Tuple, Union, Dict
 import random
 import math
+from collections import deque
+
 from savant_rs.primitives.geometry import (
     PolygonalArea,
     Segment,
@@ -81,16 +83,15 @@ class TwoLinesCrossingTracker:
 
 
 class IdleObjectTracker:
-    def __init__(self, idle_threshold: int = 5, tolerance: float = 20):
+    def __init__(self, idle_tracker_buffer: int = 900, idle_distance_threshold: float = 20):
         self.history = {}
-        self.idle_threshold = idle_threshold
-        self.tolerance = tolerance
+        self.idle_tracker_buffer = idle_tracker_buffer
+        self.idle_distance_threshold = idle_distance_threshold
 
     def update(self, track_id: int, object_coordinates: Tuple[float, float]):
-        if track_id in self.history:
-            self.history[track_id].append(object_coordinates)
-        else:
-            self.history[track_id] = [object_coordinates]
+        if track_id not in self.history:
+            self.history[track_id] = deque(maxlen=self.idle_tracker_buffer)
+        self.history[track_id].append(object_coordinates)
 
     def remove_track(self, track_id: int):
         if track_id in self.history:
@@ -103,16 +104,13 @@ class IdleObjectTracker:
         results = [None] * len(track_ids)
         for track_idx, track_id in enumerate(track_ids):
             if track_id in self.history:
-                object_history = self.history[track_id]
-                if len(object_history) >= self.idle_threshold:
-                    reference_coordinates = object_history[-self.idle_threshold]
-                    is_idle = all(
-                        self.calculate_distance(reference_coordinates, coordinate) <= self.tolerance
-                        for coordinate in object_history[-self.idle_threshold + 1:]
-                    )
-                    results[track_idx] = Movement.idle.name if is_idle else Movement.moving.name
-                else:
-                    results[track_idx] = Movement.moving.name
+                object_history = list(self.history[track_id])
+                reference_coordinates = object_history[0]
+                is_idle = all(
+                    self.calculate_distance(reference_coordinates, coordinate) <= self.idle_distance_threshold
+                    for coordinate in object_history[1:]
+                )
+                results[track_idx] = Movement.idle.name if is_idle else Movement.moving.name
             else:
                 results[track_idx] = Movement.moving.name
 

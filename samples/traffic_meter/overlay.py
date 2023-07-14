@@ -17,12 +17,14 @@ class Overlay(NvDsDrawFunc):
         line_from = None
         entries_n = None
         exits_n = None
+        idles_n = None
         for obj_meta in frame_meta.objects:
             if obj_meta.is_primary:
                 line_from = obj_meta.get_attr_meta('analytics', 'line_from')
                 line_to = obj_meta.get_attr_meta('analytics', 'line_to')
                 entries_n = obj_meta.get_attr_meta('analytics', 'entries_n')
                 exits_n = obj_meta.get_attr_meta('analytics', 'exits_n')
+                idles_n = obj_meta.get_attr_meta('idle_analytics', 'idles_n')
             else:
                 # mark obj center as it is used for entry/exit detection
                 color = self.obj_colors[(frame_meta.source_id, obj_meta.track_id)]
@@ -95,14 +97,24 @@ class Overlay(NvDsDrawFunc):
         artist.add_text(
             f'Entries: {entries_n}',
             (50, 50),
-            2.5,
-            5,
+            1.,
+            2,
             anchor_point_type=Position.LEFT_TOP,
         )
         artist.add_text(
             f'Exits: {exits_n}',
-            (600, 50),
-            2.5,
-            5,
+            (300, 50),
+            1.,
+            2,
             anchor_point_type=Position.LEFT_TOP,
+        )
+
+        # draw idle counts
+        idles_n = idles_n.value if idles_n is not None else 0
+        artist.add_text(
+            f'# of stationary vehicles: {idles_n}',
+            (700, 50),
+            1.,
+            2,
+            anchor_point_type=Position.LEFT_TOP
         )
