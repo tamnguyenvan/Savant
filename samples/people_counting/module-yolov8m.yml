@@ -2,8 +2,8 @@ name: ${oc.env:MODULE_NAME, 'people-counting-yolov8m'}
 
 parameters:
   frame:
-    width: 1280
-    height: 720
+    width: 640
+    height: 480
     padding:
       # Paddings are kept on the output frame
       keep: true

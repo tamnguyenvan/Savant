@@ -8,7 +8,7 @@ services:
       - zmq_sockets:/tmp/zmq-sockets
       - /tmp/video-loop-source-downloads:/tmp/video-loop-source-downloads
     environment:
-      - LOCATION=https://merlin-assets-bucket-dev.s3.ap-south-1.amazonaws.com/mwc-sample-videos/traffic-video-youtube.mp4
+      - LOCATION=https://merlin-assets-bucket-dev.s3.ap-south-1.amazonaws.com/mwc-sample-videos/SPEED/Veerapuram+jn_NVR1.mp4
       - DOWNLOAD_PATH=/tmp/video-loop-source-downloads
       - ZMQ_ENDPOINT=pub+connect:ipc:///tmp/zmq-sockets/input-video.ipc
       - SOURCE_ID=cctv_camera_1
