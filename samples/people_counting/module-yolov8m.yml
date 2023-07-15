@@ -1,4 +1,4 @@
-name: ${oc.env:MODULE_NAME, 'traffic-meter-yolov8m'}
+name: ${oc.env:MODULE_NAME, 'people-counting-yolov8m'}
 
 parameters:
   frame:
