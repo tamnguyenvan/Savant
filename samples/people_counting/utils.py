@@ -124,8 +124,8 @@ class IdleObjectTracker:
 
 
 class CrowdTracker:
-    def __init__(self, crowd_area: List[Tuple[int]]):
-        self.crowd_area = crowd_area
+    def __init__(self, crowd_area: List[int]):
+        self.crowd_area = [crowd_area[i:i+2] for i in range(0, len(crowd_area), 2)]
         self.people_coordinates = []
 
     def update(self, point: Tuple[int]):
