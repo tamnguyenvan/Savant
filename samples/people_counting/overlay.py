@@ -121,7 +121,7 @@ class Overlay(NvDsDrawFunc):
         artist.add_polygon(
             vertices=crowd_area,
             line_width=3,
-            line_color=(255, 255, 255)
+            line_color=(255, 255, 255, 255)
         )
         crowd_text = 'yes' if is_crowded else 'no'
         artist.add_text(
