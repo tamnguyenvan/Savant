@@ -23,6 +23,7 @@ class Overlay(NvDsDrawFunc):
         exits_n = None
         is_crowded = None
         idles_n = None
+        crowd_area = []
         for obj_meta in frame_meta.objects:
             if obj_meta.is_primary:
                 line_from = obj_meta.get_attr_meta('analytics', 'line_from')
@@ -30,6 +31,7 @@ class Overlay(NvDsDrawFunc):
                 entries_n = obj_meta.get_attr_meta('analytics', 'entries_n')
                 exits_n = obj_meta.get_attr_meta('analytics', 'exits_n')
                 is_crowded = obj_meta.get_attr_meta('crowd_analytics', 'is_crowded')
+                crowd_area = obj_meta.get_attr_meta('crowd_analytics', 'crowd_area')
                 idles_n = obj_meta.get_attr_meta('idle_analytics', 'idles_n')
             else:
                 # mark obj center as it is used for entry/exit detection
@@ -103,24 +105,29 @@ class Overlay(NvDsDrawFunc):
         artist.add_text(
             f'Entries: {entries_n}',
             (int(self.entry_text_anchor_pos * frame_w), 50),
-            1.,
+            0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
         )
         artist.add_text(
             f'Exits: {exits_n}',
             (int(self.exit_text_anchor_pos * frame_w), 50),
-            1.,
+            0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
         )
 
         # draw people crowding
+        artist.add_polygon(
+            vertices=crowd_area,
+            line_width=3,
+            line_color=(255, 255, 255)
+        )
         crowd_text = 'yes' if is_crowded else 'no'
         artist.add_text(
             f'Crowd detected: {crowd_text}',
             (int(self.crowd_text_anchor_pos * frame_w), 50),
-            1.,
+            0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
         )
@@ -130,7 +137,7 @@ class Overlay(NvDsDrawFunc):
         artist.add_text(
             f'# of stationary vehicles: {idles_n}',
             (int(self.idle_text_anchor_pos * frame_w), 50),
-            1.,
+            0.5,
             2,
             anchor_point_type=Position.LEFT_TOP
         )
