@@ -104,14 +104,14 @@ class Overlay(NvDsDrawFunc):
         exits_n = exits_n.value if exits_n is not None else 0
         artist.add_text(
             f'Entries: {entries_n}',
-            (int(self.entry_text_anchor_pos * frame_w), 50),
+            (10, 50),
             0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
         )
         artist.add_text(
             f'Exits: {exits_n}',
-            (int(self.exit_text_anchor_pos * frame_w), 50),
+            (10, 100),
             0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
@@ -129,7 +129,7 @@ class Overlay(NvDsDrawFunc):
         crowd_text = 'yes' if is_crowded else 'no'
         artist.add_text(
             f'Crowd detected: {crowd_text}',
-            (int(self.crowd_text_anchor_pos * frame_w), 50),
+            (10, 150),
             0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
@@ -138,8 +138,8 @@ class Overlay(NvDsDrawFunc):
         # draw idle counts
         idles_n = idles_n.value if idles_n is not None else 0
         artist.add_text(
-            f'# of stationary vehicles: {idles_n}',
-            (int(self.idle_text_anchor_pos * frame_w), 50),
+            f'# of standing people: {idles_n}',
+            (120, 50),
             0.5,
             2,
             anchor_point_type=Position.LEFT_TOP
