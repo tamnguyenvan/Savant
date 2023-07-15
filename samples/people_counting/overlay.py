@@ -17,6 +17,7 @@ class Overlay(NvDsDrawFunc):
         line_from = None
         entries_n = None
         exits_n = None
+        is_crowded = None
         idles_n = None
         for obj_meta in frame_meta.objects:
             if obj_meta.is_primary:
@@ -24,6 +25,7 @@ class Overlay(NvDsDrawFunc):
                 line_to = obj_meta.get_attr_meta('analytics', 'line_to')
                 entries_n = obj_meta.get_attr_meta('analytics', 'entries_n')
                 exits_n = obj_meta.get_attr_meta('analytics', 'exits_n')
+                is_crowded = obj_meta.get_attr_meta('crowd_analytics', 'is_crowded')
                 idles_n = obj_meta.get_attr_meta('idle_analytics', 'idles_n')
             else:
                 # mark obj center as it is used for entry/exit detection
@@ -104,6 +106,16 @@ class Overlay(NvDsDrawFunc):
         artist.add_text(
             f'Exits: {exits_n}',
             (300, 50),
+            1.,
+            2,
+            anchor_point_type=Position.LEFT_TOP,
+        )
+
+        # draw people crowding
+        crowd_text = 'yes' if is_crowded else 'no'
+        artist.add_text(
+            f'Crowd detected: {crowd_text}',
+            (600, 50),
             1.,
             2,
             anchor_point_type=Position.LEFT_TOP,

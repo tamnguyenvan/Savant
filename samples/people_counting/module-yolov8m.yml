@@ -64,6 +64,7 @@ pipeline:
       class_name: LineCrossing
       kwargs:
         config_path: ${oc.env:PROJECT_PATH}/samples/people_counting/line_config.yml
+        calib_path: ${oc.env:PROJECT_PATH}/samples/people_counting/calib.yml
         stale_track_del_period: 5000
         target_obj_labels: [ person ]
         idle_tracker_buffer: 900

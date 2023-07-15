@@ -6,7 +6,8 @@ from savant.gstreamer import Gst
 from savant.deepstream.meta.frame import NvDsFrameMeta
 from savant.deepstream.pyfunc import NvDsPyFuncPlugin
 from samples.people_counting.utils import (
-    Point, Direction, TwoLinesCrossingTracker, IdleObjectTracker, Movement
+    Point, Direction, TwoLinesCrossingTracker,
+    IdleObjectTracker, CrowdTracker, Movement
 )
 
 
@@ -67,6 +68,12 @@ class LineCrossing(NvDsPyFuncPlugin):
                     sys.exit(1)
             self.areas[source_id] = area
 
+        self.crowd_config = {}
+        with open(self.calib_path, 'r', encoding='utf8') as f:
+            self.calib_data = yaml.safe_load(f)
+        for source_id, crowd_meta in self.calib_data.items():
+            self.crowd_config[source_id] = crowd_meta
+
         self.lc_trackers = {}
         self.track_last_frame_num = defaultdict(lambda: defaultdict(int))
         self.entry_count = defaultdict(int)
@@ -74,6 +81,7 @@ class LineCrossing(NvDsPyFuncPlugin):
         self.cross_events = defaultdict(lambda: defaultdict(list))
 
         self.idle_trackers = {}
+        self.crowd_trackers = {}
 
     def on_source_eos(self, source_id: str):
         """On source EOS event callback."""
@@ -90,6 +98,9 @@ class LineCrossing(NvDsPyFuncPlugin):
 
         if source_id in self.idle_trackers:
             del self.idle_trackers[source_id]
+
+        if source_id in self.crowd_trackers:
+            del self.crowd_trackers[source_id]
 
     def process_frame(self, buffer: Gst.Buffer, frame_meta: NvDsFrameMeta):
         """Process frame metadata.
@@ -120,6 +131,12 @@ class LineCrossing(NvDsPyFuncPlugin):
                 )
             idle_trakcer = self.idle_trackers[frame_meta.source_id]
 
+            if frame_meta.source_id not in self.crowd_trackers:
+                self.crowd_trackers[frame_meta.source_id] = CrowdTracker(
+                    crowd_area=self.crowd_config[frame_meta.source_id]['crowd_area']
+                )
+            crowd_tracker = self.crowd_trackers[frame_meta.source_id]
+
             obj_metas = []
             for obj_meta in frame_meta.objects:
                 if obj_meta.label in self.target_obj_labels:
@@ -133,6 +150,7 @@ class LineCrossing(NvDsPyFuncPlugin):
                     )
                     object_coordinate = (obj_meta.bbox.xc, obj_meta.bbox.yc)
                     idle_trakcer.update(obj_meta.track_id, object_coordinate)
+                    crowd_tracker.update(object_coordinate)
 
                     self.track_last_frame_num[frame_meta.source_id][
                         obj_meta.track_id
@@ -165,6 +183,12 @@ class LineCrossing(NvDsPyFuncPlugin):
                 obj_meta.add_attr_meta('idle_tracker', movement, frame_meta.pts)
                 if movement == Movement.idle.name:
                     idles_n += 1
+
+            # crowd detection
+            is_crowded = crowd_tracker.check_crowd(self.crowd_config[frame_meta.source_id]['crowd_threshold'])
+            primary_meta_object.add_attr_meta(
+                'crowd_analytics', 'is_crowded', is_crowded
+            )
 
             primary_meta_object.add_attr_meta(
                 'idle_analytics', 'idles_n', idles_n

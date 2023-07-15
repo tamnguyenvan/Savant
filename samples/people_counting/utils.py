@@ -123,6 +123,37 @@ class IdleObjectTracker:
         return distance
 
 
+class CrowdTracker:
+    def __init__(self, crowd_area: List[Tuple[int]]):
+        self.crowd_area = crowd_area
+        self.people_coordinates = []
+
+    def update(self, point: Tuple[int]):
+        self.people_coordinates.append(point)
+
+    def check_crowd(self, threshold: int = 20) -> bool:
+        count = 0
+        for point in self.people_coordinates:
+            if self._is_inside_polygon(point):
+                count += 1
+
+        is_crowded = count >= threshold
+        self.people_coordinates = []
+        return is_crowded
+
+    def _is_inside_polygon(self, point: Tuple[int]) -> bool:
+        x, y = point
+        n = len(self.crowd_area)
+        inside = False
+        p1x, p1y = self.crowd_area[0]
+        for i in range(n + 1):
+            p2x, p2y = self.crowd_area[i % n]
+            if (p1y > y) != (p2y > y) and x < (p2x - p1x) * (y - p1y) / (p2y - p1y) + p1x:
+                inside = not inside
+            p1x, p1y = p2x, p2y
+        return inside
+
+
 class RandColorIterator:
     def __init__(self) -> None:
         self.golden_ratio_conjugate = 0.618033988749895

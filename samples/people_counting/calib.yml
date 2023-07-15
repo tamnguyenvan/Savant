@@ -1,0 +1,3 @@
+cctv_camera_1:
+  crowd_area: [[203, 408], [412, 400], [193, 553], [588, 517]]  # tl, bl, br, tr
+  crowd_threshold: 20
