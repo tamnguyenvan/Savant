@@ -23,7 +23,7 @@ class Overlay(NvDsDrawFunc):
         exits_n = None
         is_crowded = None
         idles_n = None
-        crowd_area = []
+        crowd_area = None
         for obj_meta in frame_meta.objects:
             if obj_meta.is_primary:
                 line_from = obj_meta.get_attr_meta('analytics', 'line_from')
@@ -118,6 +118,7 @@ class Overlay(NvDsDrawFunc):
         )
 
         # draw people crowding
+        crowd_area = crowd_area.value if crowd_area is not None else []
         artist.add_polygon(
             vertices=crowd_area,
             line_width=3,
