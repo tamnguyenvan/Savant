@@ -187,7 +187,7 @@ class LineCrossing(NvDsPyFuncPlugin):
             # crowd detection
             is_crowded = crowd_tracker.check_crowd(self.crowd_config[frame_meta.source_id]['crowd_threshold'])
             primary_meta_object.add_attr_meta(
-                'crowd_analytics', 'is_crowded', is_crowded
+                'crowd_analytics', 'is_crowded', 1 if is_crowded else 0
             )
 
             primary_meta_object.add_attr_meta(

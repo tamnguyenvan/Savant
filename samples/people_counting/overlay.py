@@ -11,6 +11,10 @@ class Overlay(NvDsDrawFunc):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.obj_colors = defaultdict(lambda: next(RandColorIterator()))
+        self.entry_text_anchor_pos = 0.1
+        self.exit_text_anchor_pos = 0.2
+        self.crowd_text_anchor_pos = 0.3
+        self.idle_text_anchor_pos = 0.4
 
     def draw_on_frame(self, frame_meta: NvDsFrameMeta, artist: Artist):
         line_to = None
@@ -98,14 +102,14 @@ class Overlay(NvDsDrawFunc):
         exits_n = exits_n.value if exits_n is not None else 0
         artist.add_text(
             f'Entries: {entries_n}',
-            (50, 50),
+            (int(self.entry_text_anchor_pos * frame_w), 50),
             1.,
             2,
             anchor_point_type=Position.LEFT_TOP,
         )
         artist.add_text(
             f'Exits: {exits_n}',
-            (300, 50),
+            (int(self.exit_text_anchor_pos * frame_w), 50),
             1.,
             2,
             anchor_point_type=Position.LEFT_TOP,
@@ -115,7 +119,7 @@ class Overlay(NvDsDrawFunc):
         crowd_text = 'yes' if is_crowded else 'no'
         artist.add_text(
             f'Crowd detected: {crowd_text}',
-            (600, 50),
+            (int(self.crowd_text_anchor_pos * frame_w), 50),
             1.,
             2,
             anchor_point_type=Position.LEFT_TOP,
@@ -125,7 +129,7 @@ class Overlay(NvDsDrawFunc):
         idles_n = idles_n.value if idles_n is not None else 0
         artist.add_text(
             f'# of stationary vehicles: {idles_n}',
-            (700, 50),
+            (int(self.idle_text_anchor_pos * frame_w), 50),
             1.,
             2,
             anchor_point_type=Position.LEFT_TOP
