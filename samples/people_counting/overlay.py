@@ -119,6 +119,7 @@ class Overlay(NvDsDrawFunc):
 
         # draw people crowding
         crowd_area = crowd_area.value if crowd_area is not None else []
+        crowd_area = [crowd_area[i:i+2] for i in range(0, len(crowd_area), 2)]
         if crowd_area:
             artist.add_polygon(
                 vertices=crowd_area,
