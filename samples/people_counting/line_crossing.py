@@ -5,7 +5,7 @@ from savant_rs.primitives.geometry import PolygonalArea, Point
 from savant.gstreamer import Gst
 from savant.deepstream.meta.frame import NvDsFrameMeta
 from savant.deepstream.pyfunc import NvDsPyFuncPlugin
-from samples.traffic_meter.utils import (
+from samples.people_counting.utils import (
     Point, Direction, TwoLinesCrossingTracker, IdleObjectTracker, Movement
 )
 
