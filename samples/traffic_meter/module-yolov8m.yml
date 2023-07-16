@@ -60,7 +60,7 @@ pipeline:
             - class_id: 7
               label: truck
 
-    # person tracker
+    # tracker
     - element: nvtracker
       properties:
         ll-lib-file: /opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
@@ -74,6 +74,7 @@ pipeline:
       class_name: LineCrossing
       kwargs:
         config_path: ${oc.env:PROJECT_PATH}/samples/traffic_meter/line_config.yml
+        calib_path: ${oc.env:PROJECT_PATH}/samples/traffic_meter/calib.yml
         stale_track_del_period: 5000
         target_obj_labels: [ person, car, motobike, bus, truck]
         idle_tracker_buffer: 900

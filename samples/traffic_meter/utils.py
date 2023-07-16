@@ -7,6 +7,8 @@ from typing import Optional, Sequence, List, Tuple, Union, Dict
 import random
 import math
 from collections import deque
+import numba
+from numba import jit, njit
 
 from savant_rs.primitives.geometry import (
     PolygonalArea,
@@ -127,7 +129,7 @@ class IdleObjectTracker:
 
 class CrowdTracker:
     def __init__(self, crowd_area: List[int]):
-        self.crowd_area = [crowd_area[i:i+2] for i in range(0, len(crowd_area), 2)]
+        self.crowd_area = np.array([crowd_area[i:i+2] for i in range(0, len(crowd_area), 2)], dtype=np.float32)
         self.people_coordinates = []
 
     def update(self, point: Tuple[int]):
@@ -135,25 +137,16 @@ class CrowdTracker:
 
     def check_crowd(self, threshold: int = 20) -> bool:
         count = 0
-        for point in self.people_coordinates:
-            if self._is_inside_polygon(point):
-                count += 1
+        # for point in self.people_coordinates:
+        counts = is_inside_postgis_parallel(
+            np.array(self.people_coordinates, dtype=np.float32),
+            self.crowd_area
+        )
+        count = sum(counts)
 
         is_crowded = count >= threshold
         self.people_coordinates = []
         return is_crowded
-
-    def _is_inside_polygon(self, point: Tuple[int]) -> bool:
-        x, y = point
-        n = len(self.crowd_area)
-        inside = False
-        p1x, p1y = self.crowd_area[0]
-        for i in range(n + 1):
-            p2x, p2y = self.crowd_area[i % n]
-            if (p1y > y) != (p2y > y) and x < (p2x - p1x) * (y - p1y) / (p2y - p1y) + p1x:
-                inside = not inside
-            p1x, p1y = p2x, p2y
-        return inside
 
 
 class SpeedEstimator:
@@ -167,7 +160,7 @@ class SpeedEstimator:
         self.speed_area_real_height = speed_area_real_height
         self.dst_w = 500
         self.dst_h = int(self.speed_area_real_height / self.speed_area_real_width * self.dst_w)
-        self.meters_per_pixel = self.speed_area_real_width / self.dst_w
+        self.pixels_per_m = self.dst_w / self.speed_area_real_width
         src_points = np.array(speed_area).reshape((-1, 2)).astype(np.float32)
         dst_points = np.array([
             [0, 0],
@@ -175,8 +168,10 @@ class SpeedEstimator:
             [self.dst_w, self.dst_h],
             [0, self.dst_h]], dtype=np.float32)
         self.M = cv2.getPerspectiveTransform(src_points, dst_points)
+        self.history = {}
 
-    def update(self,
+    def update(
+            self,
             track_id: int,
             object_coordinates: Tuple[float, float],
             timestamp: float
@@ -193,29 +188,32 @@ class SpeedEstimator:
         if isinstance(track_ids, int):
             track_ids = [track_ids]
 
-        results = [None] * len(track_ids)
+        results = [0] * len(track_ids)
         lines = []
         times = []
         for track_id in track_ids:
-            if track_id in self.history:
+            if track_id in self.history and len(self.history[track_id]) > 1:
                 object_history = self.history[track_id]
                 x0, y0, t0 = object_history[0]
                 x1, y1, t1 = object_history[-1]
-                lines.append((x0, y0, x1, y1))
-                times.append(t1 - t0)
 
-        lines = np.array(lines, dtype=np.float32)
-        lines = np.reshape(lines, (-1, 2, 2))
-        lines_transformed = cv2.perspectiveTransform(lines, self.M)
-        for i in len(lines_transformed):
-            line_transformed = lines_transformed[i]
-            start_point = line_transformed[0]
-            end_point = line_transformed[1]
-            distance = self.calculate_distance(start_point, end_point)
-            real_distance = distance * self.meters_per_pixel
-            time = times[i]
-            speed = real_distance / time
-            results[i] = speed
+                lines.append((x0, y0, x1, y1))
+                times.append(abs(t1 - t0))
+
+        if lines:
+            lines = np.array(lines, dtype=np.float32)
+            lines = np.reshape(lines, (-1, 2, 2))
+            lines_transformed = cv2.perspectiveTransform(lines, self.M)
+            for i in range(len(lines_transformed)):
+                line_transformed = lines_transformed[i]
+                start_point = line_transformed[0]
+                end_point = line_transformed[1]
+                distance = self.calculate_distance(start_point, end_point)
+                real_distance = distance / self.pixels_per_m
+                time = times[i]
+
+                speed = int(real_distance / time)
+                results[i] = speed
         return results
 
     def calculate_distance(self, coordinates1: Tuple[float, float], coordinates2: Tuple[float, float]) -> float:
@@ -223,6 +221,47 @@ class SpeedEstimator:
         x2, y2 = coordinates2
         distance = ((x2 - x1)**2 + (y2 - y1)**2)**0.5
         return distance
+
+
+@jit(nopython=True)
+def is_inside_postgis(polygon, point):
+    length = len(polygon)
+    intersections = 0
+
+    dx2 = point[0] - polygon[0][0]
+    dy2 = point[1] - polygon[0][1]
+    ii = 0
+    jj = 1
+
+    while jj < length:
+        dx = dx2
+        dy = dy2
+        dx2 = point[0] - polygon[jj][0]
+        dy2 = point[1] - polygon[jj][1]
+
+        F = (dx - dx2) * dy - dx * (dy - dy2)
+        if F == 0.0 and dx * dx2 <= 0 and dy * dy2 <= 0:
+            return 2
+
+        if (dy >= 0 and dy2 < 0) or (dy2 >= 0 and dy < 0):
+            if F > 0:
+                intersections += 1
+            elif F < 0:
+                intersections -= 1
+
+        ii = jj
+        jj += 1
+
+    return intersections != 0
+
+
+@njit(parallel=True)
+def is_inside_postgis_parallel(points, polygon):
+    ln = len(points)
+    D = np.empty(ln, dtype=numba.boolean) 
+    for i in numba.prange(ln):
+        D[i] = is_inside_postgis(polygon, points[i])
+    return D
 
 
 class RandColorIterator:

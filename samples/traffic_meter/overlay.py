@@ -68,9 +68,18 @@ class Overlay(NvDsDrawFunc):
                     artist.add_text(
                         movement,
                         (int(obj_meta.bbox.left), int(obj_meta.bbox.top) + offset),
-                        anchor_point_type=Position.RIGHT_BOTTOM,
+                        anchor_point_type=Position.LEFT_TOP,
                     )
                     offset += 20
+
+                # speed
+                speed = obj_meta.get_attr_meta('speed_tracker', 'speed')
+                speed = f'{int(speed.value*3.6)} km/h' if speed is not None and speed.value >= 0 else 'unknown'
+                artist.add_text(
+                    speed,
+                    (int(obj_meta.bbox.left), int(obj_meta.bbox.top) - 20),
+                    anchor_point_type=Position.LEFT_TOP,
+                )
 
         # draw boundary lines
         if line_from and line_to:
@@ -100,16 +109,16 @@ class Overlay(NvDsDrawFunc):
         exits_n = exits_n.value if exits_n is not None else 0
         artist.add_text(
             f'Entries: {entries_n}',
-            (10, 50),
-            1.,
-            2,
+            (10, 30),
+            0.5,
+            1,
             anchor_point_type=Position.LEFT_TOP,
         )
         artist.add_text(
             f'Exits: {exits_n}',
-            (10, 100),
-            1.,
-            2,
+            (10, 60),
+            0.5,
+            1,
             anchor_point_type=Position.LEFT_TOP,
         )
 
@@ -122,12 +131,13 @@ class Overlay(NvDsDrawFunc):
                 line_width=3,
                 line_color=(255, 255, 255, 255)
             )
-        crowd_text = 'yes' if is_crowded else 'no'
+        
+        crowd_text = 'yes' if is_crowded is not None and is_crowded.value else 'no'
         artist.add_text(
             f'Crowd detected: {crowd_text}',
-            (10, 150),
+            (10, 90),
             0.5,
-            2,
+            1,
             anchor_point_type=Position.LEFT_TOP,
         )
 
@@ -135,8 +145,8 @@ class Overlay(NvDsDrawFunc):
         idles_n = idles_n.value if idles_n is not None else 0
         artist.add_text(
             f'# of stationary vehicles: {idles_n}',
-            (200, 50),
-            1.,
-            2,
+            (250, 30),
+            0.5,
+            1,
             anchor_point_type=Position.LEFT_TOP
         )

@@ -1,5 +1,6 @@
 from collections import defaultdict
 import sys
+import time
 import yaml
 from savant_rs.primitives.geometry import PolygonalArea, Point
 from savant.gstreamer import Gst
@@ -68,11 +69,12 @@ class LineCrossing(NvDsPyFuncPlugin):
                     sys.exit(1)
             self.areas[source_id] = area
 
+        # load calibration data
         self.calib_config = {}
         with open(self.calib_path, 'r', encoding='utf8') as f:
             self.calib_data = yaml.safe_load(f)
-        for source_id, crowd_meta in self.calib_data.items():
-            self.calib_config[source_id] = crowd_meta
+        for source_id, calibration_data in self.calib_data.items():
+            self.calib_config[source_id] = calibration_data
 
         self.lc_trackers = {}
         self.track_last_frame_num = defaultdict(lambda: defaultdict(int))
@@ -161,7 +163,7 @@ class LineCrossing(NvDsPyFuncPlugin):
                     object_coordinate = (obj_meta.bbox.xc, obj_meta.bbox.yc)
                     idle_trakcer.update(obj_meta.track_id, object_coordinate)
                     crowd_tracker.update(object_coordinate)
-                    speed_estimator.update((*object_coordinate, frame_meta.pts))
+                    speed_estimator.update(obj_meta.track_id, object_coordinate, time.time())
 
                     self.track_last_frame_num[frame_meta.source_id][
                         obj_meta.track_id
