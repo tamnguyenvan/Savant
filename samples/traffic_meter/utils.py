@@ -129,20 +129,22 @@ class IdleObjectTracker:
 
 class CrowdTracker:
     def __init__(self, crowd_area: List[int]):
-        self.crowd_area = np.array([crowd_area[i:i+2] for i in range(0, len(crowd_area), 2)], dtype=np.float32)
+        self.crowd_area = np.array(crowd_area, dtype=np.float32).reshape((-1, 2))
         self.people_coordinates = []
 
     def update(self, point: Tuple[int]):
         self.people_coordinates.append(point)
 
     def check_crowd(self, threshold: int = 20) -> bool:
-        count = 0
-        # for point in self.people_coordinates:
-        counts = is_inside_postgis_parallel(
-            np.array(self.people_coordinates, dtype=np.float32),
-            self.crowd_area
-        )
-        count = sum(counts)
+        people_coordinates = np.array(self.people_coordinates, dtype=np.float32)
+        if people_coordinates.size > 0:
+            counts = is_inside_postgis_parallel(
+                people_coordinates,
+                self.crowd_area
+            )
+            count = sum(counts)
+        else:
+            count = 0
 
         is_crowded = count >= threshold
         self.people_coordinates = []
