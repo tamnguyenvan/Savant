@@ -139,7 +139,7 @@ class Overlay(NvDsDrawFunc):
         idles_n = idles_n.value if idles_n is not None else 0
         artist.add_text(
             f'# of standing people: {idles_n}',
-            (120, 50),
+            (200, 50),
             0.5,
             2,
             anchor_point_type=Position.LEFT_TOP

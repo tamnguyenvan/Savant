@@ -1,4 +1,6 @@
 """Line crossing trackers."""
+import cv2
+import numpy as np
 from collections import deque, defaultdict
 from enum import Enum
 from typing import Optional, Sequence, List, Tuple, Union, Dict
@@ -114,6 +116,106 @@ class IdleObjectTracker:
             else:
                 results[track_idx] = Movement.moving.name
 
+        return results
+
+    def calculate_distance(self, coordinates1: Tuple[float, float], coordinates2: Tuple[float, float]) -> float:
+        x1, y1 = coordinates1
+        x2, y2 = coordinates2
+        distance = ((x2 - x1)**2 + (y2 - y1)**2)**0.5
+        return distance
+
+
+class CrowdTracker:
+    def __init__(self, crowd_area: List[int]):
+        self.crowd_area = [crowd_area[i:i+2] for i in range(0, len(crowd_area), 2)]
+        self.people_coordinates = []
+
+    def update(self, point: Tuple[int]):
+        self.people_coordinates.append(point)
+
+    def check_crowd(self, threshold: int = 20) -> bool:
+        count = 0
+        for point in self.people_coordinates:
+            if self._is_inside_polygon(point):
+                count += 1
+
+        is_crowded = count >= threshold
+        self.people_coordinates = []
+        return is_crowded
+
+    def _is_inside_polygon(self, point: Tuple[int]) -> bool:
+        x, y = point
+        n = len(self.crowd_area)
+        inside = False
+        p1x, p1y = self.crowd_area[0]
+        for i in range(n + 1):
+            p2x, p2y = self.crowd_area[i % n]
+            if (p1y > y) != (p2y > y) and x < (p2x - p1x) * (y - p1y) / (p2y - p1y) + p1x:
+                inside = not inside
+            p1x, p1y = p2x, p2y
+        return inside
+
+
+class SpeedEstimator:
+    def __init__(
+            self,
+            speed_area: List[int],
+            speed_area_real_width: int,
+            speed_area_real_height: int,
+        ):
+        self.speed_area_real_width = speed_area_real_width
+        self.speed_area_real_height = speed_area_real_height
+        self.dst_w = 500
+        self.dst_h = int(self.speed_area_real_height / self.speed_area_real_width * self.dst_w)
+        self.meters_per_pixel = self.speed_area_real_width / self.dst_w
+        src_points = np.array(speed_area).reshape((-1, 2)).astype(np.float32)
+        dst_points = np.array([
+            [0, 0],
+            [self.dst_w, 0],
+            [self.dst_w, self.dst_h],
+            [0, self.dst_h]], dtype=np.float32)
+        self.M = cv2.getPerspectiveTransform(src_points, dst_points)
+
+    def update(self,
+            track_id: int,
+            object_coordinates: Tuple[float, float],
+            timestamp: float
+        ):
+        if track_id not in self.history:
+            self.history[track_id] = deque(maxlen=1000)
+        self.history[track_id].append((*object_coordinates, timestamp))
+
+    def remove_track(self, track_id: int):
+        if track_id in self.history:
+            del self.history[track_id]
+
+    def estimate(self, track_ids: Union[int, List[int]]) -> List:
+        if isinstance(track_ids, int):
+            track_ids = [track_ids]
+
+        results = [None] * len(track_ids)
+        lines = []
+        times = []
+        for track_id in track_ids:
+            if track_id in self.history:
+                object_history = self.history[track_id]
+                x0, y0, t0 = object_history[0]
+                x1, y1, t1 = object_history[-1]
+                lines.append((x0, y0, x1, y1))
+                times.append(t1 - t0)
+
+        lines = np.array(lines, dtype=np.float32)
+        lines = np.reshape(lines, (-1, 2, 2))
+        lines_transformed = cv2.perspectiveTransform(lines, self.M)
+        for i in len(lines_transformed):
+            line_transformed = lines_transformed[i]
+            start_point = line_transformed[0]
+            end_point = line_transformed[1]
+            distance = self.calculate_distance(start_point, end_point)
+            real_distance = distance * self.meters_per_pixel
+            time = times[i]
+            speed = real_distance / time
+            results[i] = speed
         return results
 
     def calculate_distance(self, coordinates1: Tuple[float, float], coordinates2: Tuple[float, float]) -> float:

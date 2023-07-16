@@ -17,13 +17,17 @@ class Overlay(NvDsDrawFunc):
         line_from = None
         entries_n = None
         exits_n = None
+        is_crowded = None
         idles_n = None
+        crowd_area = None
         for obj_meta in frame_meta.objects:
             if obj_meta.is_primary:
                 line_from = obj_meta.get_attr_meta('analytics', 'line_from')
                 line_to = obj_meta.get_attr_meta('analytics', 'line_to')
                 entries_n = obj_meta.get_attr_meta('analytics', 'entries_n')
                 exits_n = obj_meta.get_attr_meta('analytics', 'exits_n')
+                is_crowded = obj_meta.get_attr_meta('crowd_analytics', 'is_crowded')
+                crowd_area = obj_meta.get_attr_meta('crowd_analytics', 'crowd_area')
                 idles_n = obj_meta.get_attr_meta('idle_analytics', 'idles_n')
             else:
                 # mark obj center as it is used for entry/exit detection
@@ -96,15 +100,33 @@ class Overlay(NvDsDrawFunc):
         exits_n = exits_n.value if exits_n is not None else 0
         artist.add_text(
             f'Entries: {entries_n}',
-            (50, 50),
+            (10, 50),
             1.,
             2,
             anchor_point_type=Position.LEFT_TOP,
         )
         artist.add_text(
             f'Exits: {exits_n}',
-            (300, 50),
+            (10, 100),
             1.,
+            2,
+            anchor_point_type=Position.LEFT_TOP,
+        )
+
+        # draw people crowding
+        crowd_area = crowd_area.value if crowd_area is not None else []
+        crowd_area = [crowd_area[i:i+2] for i in range(0, len(crowd_area), 2)]
+        if crowd_area:
+            artist.add_polygon(
+                vertices=crowd_area,
+                line_width=3,
+                line_color=(255, 255, 255, 255)
+            )
+        crowd_text = 'yes' if is_crowded else 'no'
+        artist.add_text(
+            f'Crowd detected: {crowd_text}',
+            (10, 150),
+            0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
         )
@@ -113,7 +135,7 @@ class Overlay(NvDsDrawFunc):
         idles_n = idles_n.value if idles_n is not None else 0
         artist.add_text(
             f'# of stationary vehicles: {idles_n}',
-            (700, 50),
+            (200, 50),
             1.,
             2,
             anchor_point_type=Position.LEFT_TOP
