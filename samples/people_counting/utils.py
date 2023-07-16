@@ -5,6 +5,9 @@ from typing import Optional, Sequence, List, Tuple, Union, Dict
 import random
 import math
 from collections import deque
+import numpy as np
+import numba
+from numba import jit, njit
 
 from savant_rs.primitives.geometry import (
     PolygonalArea,
@@ -125,34 +128,67 @@ class IdleObjectTracker:
 
 class CrowdTracker:
     def __init__(self, crowd_area: List[int]):
-        self.crowd_area = [crowd_area[i:i+2] for i in range(0, len(crowd_area), 2)]
+        self.crowd_area = np.array(crowd_area, dtype=np.float32).reshape((-1, 2))
         self.people_coordinates = []
 
     def update(self, point: Tuple[int]):
         self.people_coordinates.append(point)
 
     def check_crowd(self, threshold: int = 20) -> bool:
-        count = 0
-        for point in self.people_coordinates:
-            if self._is_inside_polygon(point):
-                count += 1
+        people_coordinates = np.array(self.people_coordinates, dtype=np.float32)
+        if people_coordinates.size > 0:
+            counts = is_inside_postgis_parallel(
+                people_coordinates,
+                self.crowd_area
+            )
+            count = sum(counts)
+        else:
+            count = 0
 
         is_crowded = count >= threshold
         self.people_coordinates = []
         return is_crowded
 
-    def _is_inside_polygon(self, point: Tuple[int]) -> bool:
-        x, y = point
-        n = len(self.crowd_area)
-        inside = False
-        p1x, p1y = self.crowd_area[0]
-        for i in range(n + 1):
-            p2x, p2y = self.crowd_area[i % n]
-            if (p1y > y) != (p2y > y) and x < (p2x - p1x) * (y - p1y) / (p2y - p1y) + p1x:
-                inside = not inside
-            p1x, p1y = p2x, p2y
-        return inside
 
+@jit(nopython=True)
+def is_inside_postgis(polygon, point):
+    length = len(polygon)
+    intersections = 0
+
+    dx2 = point[0] - polygon[0][0]
+    dy2 = point[1] - polygon[0][1]
+    ii = 0
+    jj = 1
+
+    while jj < length:
+        dx = dx2
+        dy = dy2
+        dx2 = point[0] - polygon[jj][0]
+        dy2 = point[1] - polygon[jj][1]
+
+        F = (dx - dx2) * dy - dx * (dy - dy2)
+        if F == 0.0 and dx * dx2 <= 0 and dy * dy2 <= 0:
+            return 2
+
+        if (dy >= 0 and dy2 < 0) or (dy2 >= 0 and dy < 0):
+            if F > 0:
+                intersections += 1
+            elif F < 0:
+                intersections -= 1
+
+        ii = jj
+        jj += 1
+
+    return intersections != 0
+
+
+@njit(parallel=True)
+def is_inside_postgis_parallel(points, polygon):
+    ln = len(points)
+    D = np.empty(ln, dtype=numba.boolean) 
+    for i in numba.prange(ln):
+        D[i] = is_inside_postgis(polygon, points[i])
+    return D
 
 class RandColorIterator:
     def __init__(self) -> None:

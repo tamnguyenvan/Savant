@@ -1,13 +1,15 @@
 from collections import defaultdict
 import sys
 import yaml
+import numpy as np
 from savant_rs.primitives.geometry import PolygonalArea, Point
 from savant.gstreamer import Gst
 from savant.deepstream.meta.frame import NvDsFrameMeta
 from savant.deepstream.pyfunc import NvDsPyFuncPlugin
 from samples.people_counting.utils import (
     Point, Direction, TwoLinesCrossingTracker,
-    IdleObjectTracker, CrowdTracker, Movement
+    IdleObjectTracker, CrowdTracker, Movement,
+    is_inside_postgis_parallel
 )
 
 
@@ -131,70 +133,84 @@ class LineCrossing(NvDsPyFuncPlugin):
                 )
             idle_trakcer = self.idle_trackers[frame_meta.source_id]
 
+            crowd_area = self.crowd_config[frame_meta.source_id]['crowd_area']
+            crowd_threshold = self.crowd_config[frame_meta.source_id]['crowd_threshold']
             if frame_meta.source_id not in self.crowd_trackers:
                 self.crowd_trackers[frame_meta.source_id] = CrowdTracker(
-                    crowd_area=self.crowd_config[frame_meta.source_id]['crowd_area']
+                    crowd_area=crowd_area
                 )
             crowd_tracker = self.crowd_trackers[frame_meta.source_id]
 
+            crowd_area_2d = np.array(crowd_area, dtype=np.float32).reshape((-1, 2))
             obj_metas = []
-            for obj_meta in frame_meta.objects:
-                if obj_meta.label in self.target_obj_labels:
-                    lc_tracker.add_track_point(
-                        obj_meta.track_id,
-                        # center point
-                        Point(
-                            obj_meta.bbox.xc,
-                            obj_meta.bbox.yc,
-                        ),
-                    )
-                    object_coordinate = (obj_meta.bbox.xc, obj_meta.bbox.yc)
-                    idle_trakcer.update(obj_meta.track_id, object_coordinate)
-                    crowd_tracker.update(object_coordinate)
+            interested_object_idxs = []
+            for i, obj_meta in enumerate(frame_meta.objects):
+                # keep objects that are inside the RoI only
+                centroid = np.array([[obj_meta.bbox.xc, obj_meta.bbox.yc]], dtype=np.float32)
+                if np.all(is_inside_postgis_parallel(centroid, crowd_area_2d)):
+                    if obj_meta.label in self.target_obj_labels:
+                        lc_tracker.add_track_point(
+                            obj_meta.track_id,
+                            # center point
+                            Point(
+                                obj_meta.bbox.xc,
+                                obj_meta.bbox.yc,
+                            ),
+                        )
+                        object_coordinate = (obj_meta.bbox.xc, obj_meta.bbox.yc)
+                        idle_trakcer.update(obj_meta.track_id, object_coordinate)
+                        crowd_tracker.update(object_coordinate)
 
-                    self.track_last_frame_num[frame_meta.source_id][
-                        obj_meta.track_id
-                    ] = frame_meta.frame_num
+                        self.track_last_frame_num[frame_meta.source_id][
+                            obj_meta.track_id
+                        ] = frame_meta.frame_num
 
-                    obj_metas.append(obj_meta)
+                        obj_metas.append(obj_meta)
+                        interested_object_idxs.append(i)
 
-            track_lines_crossings = lc_tracker.check_tracks(
-                [obj_meta.track_id for obj_meta in obj_metas]
+            idles_count = 0
+            if obj_metas:
+                track_lines_crossings = lc_tracker.check_tracks(
+                    [obj_meta.track_id for obj_meta in obj_metas]
+                )
+
+                idle_objects = idle_trakcer.check_idle(
+                    [obj_meta.track_id for obj_meta in obj_metas]
+                )
+                for obj_meta, cross_direction, movement in zip(obj_metas, track_lines_crossings, idle_objects):
+                    obj_events = self.cross_events[frame_meta.source_id][obj_meta.track_id]
+                    if cross_direction is not None:
+
+                        obj_events.append((cross_direction.name, frame_meta.pts))
+
+                        if cross_direction == Direction.entry:
+                            self.entry_count[frame_meta.source_id] += 1
+                        elif cross_direction == Direction.exit:
+                            self.exit_count[frame_meta.source_id] += 1
+
+                    for direction_name, frame_pts in obj_events:
+                        obj_meta.add_attr_meta('lc_tracker', direction_name, frame_pts)
+
+                    obj_meta.add_attr_meta('idle_tracker', movement, frame_meta.pts)
+                    if movement == Movement.idle.name:
+                        idles_count += 1
+
+            # interested objects
+            primary_meta_object.add_attr_meta(
+                'interested_objects', 'object_idxs', interested_object_idxs
             )
-
-            idle_objects = idle_trakcer.check_idle(
-                [obj_meta.track_id for obj_meta in obj_metas]
-            )
-            idles_n = 0
-            for obj_meta, cross_direction, movement in zip(obj_metas, track_lines_crossings, idle_objects):
-                obj_events = self.cross_events[frame_meta.source_id][obj_meta.track_id]
-                if cross_direction is not None:
-
-                    obj_events.append((cross_direction.name, frame_meta.pts))
-
-                    if cross_direction == Direction.entry:
-                        self.entry_count[frame_meta.source_id] += 1
-                    elif cross_direction == Direction.exit:
-                        self.exit_count[frame_meta.source_id] += 1
-
-                for direction_name, frame_pts in obj_events:
-                    obj_meta.add_attr_meta('lc_tracker', direction_name, frame_pts)
-
-                obj_meta.add_attr_meta('idle_tracker', movement, frame_meta.pts)
-                if movement == Movement.idle.name:
-                    idles_n += 1
 
             # crowd detection
-            is_crowded = crowd_tracker.check_crowd(self.crowd_config[frame_meta.source_id]['crowd_threshold'])
+            is_crowded = crowd_tracker.check_crowd(crowd_threshold)
             primary_meta_object.add_attr_meta(
-                'crowd_analytics', 'crowd_area', self.crowd_config[frame_meta.source_id]['crowd_area']
+                'crowd_analytics', 'crowd_area', crowd_area
             )
             primary_meta_object.add_attr_meta(
                 'crowd_analytics', 'is_crowded', 1 if is_crowded else 0
             )
 
             primary_meta_object.add_attr_meta(
-                'idle_analytics', 'idles_n', idles_n
+                'idle_analytics', 'idles_n', idles_count
             )
             primary_meta_object.add_attr_meta(
                 'analytics', 'entries_n', self.entry_count[frame_meta.source_id]

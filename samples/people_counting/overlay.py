@@ -24,6 +24,8 @@ class Overlay(NvDsDrawFunc):
         is_crowded = None
         idles_n = None
         crowd_area = None
+        interested_object_idxs = None
+
         for obj_meta in frame_meta.objects:
             if obj_meta.is_primary:
                 line_from = obj_meta.get_attr_meta('analytics', 'line_from')
@@ -33,7 +35,14 @@ class Overlay(NvDsDrawFunc):
                 is_crowded = obj_meta.get_attr_meta('crowd_analytics', 'is_crowded')
                 crowd_area = obj_meta.get_attr_meta('crowd_analytics', 'crowd_area')
                 idles_n = obj_meta.get_attr_meta('idle_analytics', 'idles_n')
-            else:
+                interested_object_idxs = obj_meta.get_attr_meta('interested_objects', 'object_idxs')
+                interested_object_idxs = interested_object_idxs.value if interested_object_idxs is not None else []
+                break
+
+        for i, obj_meta in enumerate(frame_meta.objects):
+            if (not obj_meta.is_primary
+                and (interested_object_idxs is None or (interested_object_idxs and i in interested_object_idxs))
+            ):
                 # mark obj center as it is used for entry/exit detection
                 color = self.obj_colors[(frame_meta.source_id, obj_meta.track_id)]
                 artist.add_bbox(obj_meta.bbox, border_width=2, border_color=color)
@@ -104,14 +113,14 @@ class Overlay(NvDsDrawFunc):
         exits_n = exits_n.value if exits_n is not None else 0
         artist.add_text(
             f'Entries: {entries_n}',
-            (10, 50),
+            (10, 30),
             0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
         )
         artist.add_text(
             f'Exits: {exits_n}',
-            (10, 100),
+            (10, 60),
             0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
@@ -126,10 +135,10 @@ class Overlay(NvDsDrawFunc):
                 line_width=3,
                 line_color=(255, 255, 255, 255)
             )
-        crowd_text = 'yes' if is_crowded else 'no'
+        crowd_text = 'yes' if is_crowded is not None and is_crowded.value else 'no'
         artist.add_text(
             f'Crowd detected: {crowd_text}',
-            (10, 150),
+            (10, 90),
             0.5,
             2,
             anchor_point_type=Position.LEFT_TOP,
@@ -139,7 +148,7 @@ class Overlay(NvDsDrawFunc):
         idles_n = idles_n.value if idles_n is not None else 0
         artist.add_text(
             f'# of standing people: {idles_n}',
-            (200, 50),
+            (150, 30),
             0.5,
             2,
             anchor_point_type=Position.LEFT_TOP
