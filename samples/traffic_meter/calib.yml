@@ -1,0 +1,9 @@
+cctv_camera_1:
+  crowd:
+    crowd_area: [203, 408, 193, 553, 588, 517, 412, 400]  # tl, bl, br, tr
+    crowd_threshold: 20
+
+  speed:
+    speed_area: [203, 408, 193, 553, 588, 517, 412, 400]  # tl, bl, br, tr
+    speed_area_real_width: 10  # in meters
+    speed_area_real_height: 10  # in meters
