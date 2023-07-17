@@ -37,7 +37,7 @@ class Overlay(NvDsDrawFunc):
 
         for i, obj_meta in enumerate(frame_meta.objects):
             if (not obj_meta.is_primary
-                and (interested_object_idxs is None or (interested_object_idxs and i in interested_object_idxs))
+                and (interested_object_idxs is None or (interested_object_idxs and obj_meta.track_id in interested_object_idxs))
             ):
                 # mark obj center as it is used for entry/exit detection
                 color = self.obj_colors[(frame_meta.source_id, obj_meta.track_id)]

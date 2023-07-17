@@ -166,7 +166,7 @@ class LineCrossing(NvDsPyFuncPlugin):
                         ] = frame_meta.frame_num
 
                         obj_metas.append(obj_meta)
-                        interested_object_idxs.append(i)
+                        interested_object_idxs.append(obj_meta.track_id)
 
             idles_count = 0
             if obj_metas:
